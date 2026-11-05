@@ -55,7 +55,7 @@ module Scalar_multi_SM(
     reg [7:0] bit_index;
     reg [255:0] scalar_k;
     reg [255:0] qx_reg,qy_reg,qz_reg,qt_reg;
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if(!rst_n) begin
             state<=IDLE;
             done<=0;

@@ -84,7 +84,7 @@ module CPA (
     // Stage 4: bits 255:192; output register.
     wire [64:0] add4 = {1'b0, s3_hi} + {1'b0, c3_hi} + cy3;
 
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             s0 <= 0; c0 <= 0; top0 <= 0; v0 <= 0;
             r1 <= 0; s1_hi <= 0; c1_hi <= 0;

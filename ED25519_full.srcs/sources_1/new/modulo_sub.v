@@ -138,7 +138,7 @@ module modulo_sub(
         .valid_out(plus_p_valid)
     );
 
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             result <= 256'd0;
             done <= 1'b0;

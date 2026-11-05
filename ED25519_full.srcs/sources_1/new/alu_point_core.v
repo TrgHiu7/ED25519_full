@@ -41,7 +41,7 @@ module alu_point_core(
     wire alu_done;
     // Capture operation so the mux cannot switch during an active request.
     reg op_active;
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) op_active <= 1'b0;
         else if (start) op_active <= op;
     end

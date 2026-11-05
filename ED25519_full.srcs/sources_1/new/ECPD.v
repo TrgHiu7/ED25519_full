@@ -355,7 +355,7 @@ module ECPD(
             default: begin end
         endcase
     end
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             state<=IDLE; step<=0; done<=0;
         end else begin

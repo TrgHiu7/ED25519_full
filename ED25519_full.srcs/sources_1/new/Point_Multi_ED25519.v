@@ -159,7 +159,7 @@ module Point_Multi_ED25519(
     );
 
     // FSM state
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             state <= IDLE;
         end else begin
@@ -211,7 +211,7 @@ module Point_Multi_ED25519(
     end
 
     // Outputs / control
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             rst_n_SMSM   <= 1'b0;
             rst_n_mul    <= 1'b0;

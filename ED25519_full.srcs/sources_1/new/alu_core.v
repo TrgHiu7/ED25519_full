@@ -79,7 +79,7 @@ module alu_core (
         .done(done_mul)
     );
     
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             state <= S_IDLE;
             result <= 256'd0;

@@ -20,208 +20,168 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 module ed25519_sign (
-    input  wire         clk,
-    input  wire         rst,
-    input  wire         start,
-    output reg          busy,
-    output reg          done,
-    output reg [255:0]  public_key,
-    output reg [255:0]  signature_R,
-    output reg [255:0]  signature_S,
-    output wire [511:0] signature,
-    output wire         vector_match
+    input wire clk, rst_n, start,
+    input wire [255:0] secret_scalar,
+    input wire [255:0] prefix,
+    input wire [255:0] public_key,
+    input wire [511:0] msg_be,
+    input wire [6:0] msg_len,
+    output reg [511:0] signature,
+    output reg done,
+    output reg error,
+    output wire busy
 );
-    // Order of basepoint B coordinates below is the numeric field-element
-    // representation expected by Point_Multi_ED25519, NOT encoded bytes.
     localparam [255:0] BASE_X =
         256'h216936d3cd6e53fec0a4e231fdd6dc5c692cc7609525a7b2c9562d608f25d51a;
     localparam [255:0] BASE_Y =
-        256'h6666666666666666666666666666666666666666666666666666666666666658;
-    localparam [255:0] L =
-        256'h1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed;
-
-    // Original 32-byte seed and one-byte message (documentation/test fixture).
-    localparam [255:0] PRIVATE_SEED =
-        256'h4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb;
-    localparam [7:0] MESSAGE_BYTE = 8'h72;  // literal ASCII 'r'
-    localparam [511:0] SHA512_SEED =
-        512'h6ebd9ed75882d52815a97585caf4790a7f6c6b3b7f821c5e259a24b02e502e114566848291dacaf225cc63deb348da318e2c2e17b00b8160f9ce6bfa0472911d;
-
-    // a = prune(SHA512(seed)[0:32]), little-endian -> numeric 256-bit.
-    localparam [255:0] A_SCALAR =
-        256'h512e502eb0249a255e1c827f3b6b6c7f0a79f4ca8575a91528d58258d79ebd68;
-    // a mod L, used for faster group-order arithmetic (not point multiplication).
-    localparam [255:0] A_MOD_L =
-        256'h012e502eb0249a255e1c827f3b6b6c7ea21f1371569f98e5707992d506d199c7;
-    // r = SHA512(prefix || 8'h72) as a little-endian integer, then mod L.
-    localparam [255:0] R_SCALAR =
-        256'h08332edb9e5d3ac8522a07b5a1857169a67e6509ab59af23ccdb039970ffbf8f;
-    // h = SHA512(R_encoded || A_encoded || 8'h72) little-endian, mod L.
-    // R_encoded and A_encoded here are from the known GOOD RFC test vector.
-    localparam [255:0] H_SCALAR =
-        256'h035ce307f6524510110b4ea1c8af0e81fb705118ebcf886912f8d2d87b5776b3;
-
-    localparam [255:0] EXPECTED_A =
-        256'h3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c;
-    localparam [255:0] EXPECTED_R =
-        256'h92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da;
-    localparam [255:0] EXPECTED_S =
-        256'h085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00;
-
-    // RFC 8032 point encoding: y little-endian bytes; top bit of the LAST
-    // byte (bit 255 of numeric y-with-sign) is parity of affine x.
-    function [255:0] encode_point;
-        input [255:0] x;
-        input [255:0] y;
-        reg [255:0] y_sign;
-        integer idx;
-        begin
-            y_sign = y;
-            y_sign[255] = x[0];
-            for (idx=0; idx<32; idx=idx+1)
-                encode_point[255-idx*8 -: 8] = y_sign[idx*8 +: 8];
-        end
-    endfunction
-
-    // Scalar encoding: numeric 256-bit S -> 32 little-endian bytes in display
-    // order, so the displayed hex is the RFC 8032 S byte string.
-    function [255:0] encode_scalar;
-        input [255:0] val;
-        integer idx;
-        begin
-            for (idx=0; idx<32; idx=idx+1)
-                encode_scalar[255-idx*8 -: 8] = val[idx*8 +: 8];
-        end
-    endfunction
-
-    // Modular addition for reduced operands x,y < L: 0 <= x+y < 2*L.
-    function [255:0] add_mod_l;
-        input [255:0] x;
-        input [255:0] y;
-        reg [256:0] sum;
-        begin
-            sum = {1'b0,x} + {1'b0,y};
-            if (sum >= {1'b0,L})
-                sum = sum - {1'b0,L};
-            add_mod_l = sum[255:0];
-        end
-    endfunction
-
-    reg          point_start;
-    reg [255:0] point_k;
-    wire         point_done;
-    wire         point_ready;
-    wire [255:0] point_qx, point_qy;
-
-    // The only point multiplier is time-shared for A=aB and R=rB.
-    Point_Multi_ED25519 u_point (
-        .clk(clk), .rst(rst), .start(point_start), .valid(1'b1),
-        .k(point_k), .px(BASE_X), .py(BASE_Y),
-        .qx(point_qx), .qy(point_qy),
-        .done(point_done), .ready(point_ready)
-    );
-
+        256'h6666666666666666666666666666666666666666666666666666666658;
     localparam [3:0]
-        ST_IDLE     = 4'd0,
-        ST_START_A  = 4'd1,
-        ST_WAIT_A   = 4'd2,
-        ST_START_R  = 4'd3,
-        ST_WAIT_R   = 4'd4,
-        ST_PREP_S   = 4'd5,
-        ST_MUL_S    = 4'd6,
-        ST_FINAL_S  = 4'd7,
-        ST_DONE     = 4'd8;
-
+        IDLE=0, R_HASH_START=1, R_HASH_WAIT=2, R_REDUCE_WAIT=3,
+        R_POINT_REQ=4, R_POINT_WAIT=5, H_HASH_START=6, H_HASH_WAIT=7,
+        H_REDUCE_WAIT=8, MULADD_WAIT=9, S_REDUCE_WAIT=10;
     reg [3:0] state;
-    reg [7:0] bit_index;
-    reg [255:0] accum, addend, multiplier;
+    assign busy=(state!=IDLE);
+    reg [255:0] a_reg,prefix_reg,pub_reg,r_reg,h_reg,R_enc;
+    reg [511:0] msg_reg;
+    reg [6:0] len_reg;
+    reg sha_start,reduce_start,point_start,muladd_start;
+    reg [1023:0] sha_data;
+    reg [7:0] sha_bytes;
+    reg [511:0] reduce_input;
+    wire [511:0] sha_digest;
+    wire sha_done,sha_busy;
+    wire [255:0] mod_result;
+    wire reduce_done,reduce_busy;
+    wire [511:0] wide_result;
+    wire muladd_done,muladd_busy;
+    wire [255:0] point_x,point_y;
+    wire point_done,point_ready;
+    wire [255:0] r_point_scalar=r_reg;
 
-    assign signature = {signature_R, signature_S};
-    assign vector_match = (public_key == EXPECTED_A) &&
-                          (signature_R == EXPECTED_R) &&
-                          (signature_S == EXPECTED_S);
-
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            state         <= ST_IDLE;
-            point_start   <= 1'b0;
-            point_k       <= 256'd0;
-            busy          <= 1'b0;
-            done          <= 1'b0;
-            public_key    <= 256'd0;
-            signature_R   <= 256'd0;
-            signature_S   <= 256'd0;
-            bit_index     <= 8'd0;
-            accum         <= 256'd0;
-            addend        <= 256'd0;
-            multiplier    <= 256'd0;
+    function [255:0] rev32;
+        input [255:0] x;
+        integer i;
+        begin
+            for(i=0;i<32;i=i+1)
+                rev32[8*i +: 8]=x[255-8*i -: 8];
+        end
+    endfunction
+    function [511:0] rev64;
+        input [511:0] x;
+        integer i;
+        begin
+            for(i=0;i<64;i=i+1)
+                rev64[8*i +: 8]=x[511-8*i -: 8];
+        end
+    endfunction
+    kdy_sha2 u_sha (
+        .clk(clk),
+        .rst_n(rst_n),
+        .start(sha_start),
+        .data_i(sha_data),
+        .hash_o(sha_digest),
+        .done(sha_done)
+    );
+    ed25519_reduce_l u_reduce (
+        .clk(clk),.rst_n(rst_n),.start(reduce_start),
+        .value(reduce_input),.result(mod_result),
+        .done(reduce_done),.busy(reduce_busy)
+    );
+    ed25519_muladd_wide u_muladd (
+        .clk(clk),.rst_n(rst_n),.start(muladd_start),
+        .h(h_reg),.a(a_reg),.r(r_reg),
+        .value(wide_result),.done(muladd_done),.busy(muladd_busy)
+    );
+    Point_Multi_ED25519 u_point (
+        .clk(clk),.rst_n(rst_n),.start(point_start),.valid(1'b1),
+        .k(r_point_scalar),.px(BASE_X),.py(BASE_Y),
+        .qx(point_x),.qy(point_y),.done(point_done),.ready(point_ready)
+    );
+    always @(posedge clk or negedge rst_n) begin
+        if(!rst_n) begin
+            state<=IDLE;
+            a_reg<=0;prefix_reg<=0;pub_reg<=0;r_reg<=0;h_reg<=0;R_enc<=0;
+            msg_reg<=0;len_reg<=0;
+            sha_start<=0; reduce_start<=0; point_start<=0; muladd_start<=0;
+            sha_data<=0;sha_bytes<=0;reduce_input<=0;
+            signature<=0;done<=0;error<=0;
         end else begin
-            point_start <= 1'b0;
-            done <= 1'b0;
+            done<=0;
+            sha_start<=0;
+            reduce_start<=0;
+            point_start<=0;
+            muladd_start<=0;
             case(state)
-                ST_IDLE: begin
-                    if(start) begin
-                        busy <= 1'b1;
-                        public_key  <= 256'd0;
-                        signature_R <= 256'd0;
-                        signature_S <= 256'd0;
-                        point_k <= A_SCALAR;
-                        state <= ST_START_A;
+                IDLE: if(start) begin
+                    error<=0;
+                    if(msg_len > 7'd64) begin
+                        error<=1;
+                        done<=1;
+                    end else begin
+                        a_reg<=secret_scalar;
+                        prefix_reg<=prefix;
+                        pub_reg<=public_key;
+                        msg_reg<=msg_be;
+                        len_reg<=msg_len;
+                        state<=R_HASH_START;
                     end
                 end
-                ST_START_A: begin
-                    if(point_ready) begin
-                        point_start <= 1'b1;
-                        state <= ST_WAIT_A;
-                    end
+                R_HASH_START: begin
+                    // SHA512(prefix || M): 32 + len <= 96 octets.
+                    sha_data<={prefix_reg,msg_reg,256'd0};
+                    sha_bytes<=8'd32+{1'b0,len_reg};
+                    sha_start<=1;
+                    state<=R_HASH_WAIT;
                 end
-                ST_WAIT_A: begin
-                    if(point_done) begin
-                        public_key <= encode_point(point_qx,point_qy);
-                        point_k <= R_SCALAR;
-                        state <= ST_START_R;
-                    end
+                R_HASH_WAIT: if(sha_done) begin
+                    reduce_input<=rev64(sha_digest);
+                    reduce_start<=1;
+                    state<=R_REDUCE_WAIT;
                 end
-                ST_START_R: begin
-                    if(point_ready) begin
-                        point_start <= 1'b1;
-                        state <= ST_WAIT_R;
-                    end
+                R_REDUCE_WAIT: if(reduce_done) begin
+                    r_reg<=mod_result;
+                    if(mod_result==0) begin
+                        // 0*B = identity, encoding y=1,x=0 in LE bytes.
+                        R_enc<={8'h01,248'd0};
+                        state<=H_HASH_START;
+                    end else state<=R_POINT_REQ;
                 end
-                ST_WAIT_R: begin
-                    if(point_done) begin
-                        signature_R <= encode_point(point_qx,point_qy);
-                        state <= ST_PREP_S;
-                    end
+                R_POINT_REQ: if(point_ready) begin
+                    point_start<=1;
+                    state<=R_POINT_WAIT;
                 end
-                ST_PREP_S: begin
-                    accum      <= 256'd0;
-                    addend     <= A_MOD_L;
-                    multiplier <= H_SCALAR;
-                    bit_index  <= 8'd0;
-                    state <= ST_MUL_S;
+                R_POINT_WAIT: if(point_done) begin
+                    R_enc<=rev32({point_x[0],point_y[254:0]});
+                    state<=H_HASH_START;
                 end
-                ST_MUL_S: begin
-                    // Shift/add modulo L: S_mul = h * (a mod L) mod L.
-                    if(multiplier[0])
-                        accum <= add_mod_l(accum,addend);
-                    addend <= add_mod_l(addend,addend);
-                    multiplier <= multiplier >> 1;
-                    if(bit_index == 8'd255)
-                        state <= ST_FINAL_S;
-                    else
-                        bit_index <= bit_index + 1'b1;
+                H_HASH_START: begin
+                    // SHA512(R || A || M): 64 + len <= 128 octets.
+                    sha_data<={R_enc,pub_reg,msg_reg};
+                    sha_bytes<=8'd64+{1'b0,len_reg};
+                    sha_start<=1;
+                    state<=H_HASH_WAIT;
                 end
-                ST_FINAL_S: begin
-                    signature_S <= encode_scalar(add_mod_l(accum,R_SCALAR));
-                    state <= ST_DONE;
+                H_HASH_WAIT: if(sha_done) begin
+                    reduce_input<=rev64(sha_digest);
+                    reduce_start<=1;
+                    state<=H_REDUCE_WAIT;
                 end
-                ST_DONE: begin
-                    busy <= 1'b0;
-                    done <= 1'b1;
-                    state <= ST_IDLE;
+                H_REDUCE_WAIT: if(reduce_done) begin
+                    h_reg<=mod_result;
+                    muladd_start<=1;
+                    state<=MULADD_WAIT;
                 end
-                default: state <= ST_IDLE;
+                MULADD_WAIT: if(muladd_done) begin
+                    reduce_input<=wide_result;
+                    reduce_start<=1;
+                    state<=S_REDUCE_WAIT;
+                end
+                S_REDUCE_WAIT: if(reduce_done) begin
+                    signature<={R_enc,rev32(mod_result)};
+                    done<=1;
+                    state<=IDLE;
+                end
+                default: state<=IDLE;
             endcase
         end
     end

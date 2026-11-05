@@ -72,7 +72,7 @@ input  wire         clk,
 
     assign result = result_reg;
 
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             state      <= IDLE;
             mul_start  <= 1'b0;
