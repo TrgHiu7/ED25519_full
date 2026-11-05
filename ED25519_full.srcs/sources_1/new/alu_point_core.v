@@ -21,7 +21,7 @@
 
 
 module alu_point_core(
-    input wire clk,rst,start,op,
+    input wire clk,rst_n,start,op,
     input wire [255:0] px,py,pz,pt,
     input wire [255:0] bx,by,bz,bt,
     output wire [255:0] qx,qy,qz,qt,
@@ -41,8 +41,8 @@ module alu_point_core(
     wire alu_done;
     // Capture operation so the mux cannot switch during an active request.
     reg op_active;
-    always @(posedge clk or posedge rst) begin
-        if (rst) op_active <= 1'b0;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) op_active <= 1'b0;
         else if (start) op_active <= op;
     end
     assign sel_a=(op_active==1'b0)?ecpa_sel_a:ecpd_sel_a;
@@ -55,23 +55,23 @@ module alu_point_core(
     assign done=(op_active==1'b0)?done_ecpa:done_ecpd;
 
     ECPA ecpa_sm (
-        .clk(clk),.rst(rst),.start(start & ~op),.done(done_ecpa),
+        .clk(clk),.rst_n(rst_n),.start(start & ~op),.done(done_ecpa),
         .alu_op(ecpa_op),.alu_start(ecpa_start),.alu_done(alu_done),
         .src1_sel(ecpa_sel_a),.src2_sel(ecpa_sel_b),.dst_sel(ecpa_sel_w),
         .we(ecpa_we),.din_sel(ecpa_din)
     );
     ECPD ecpd_sm (
-        .clk(clk),.rst(rst),.start(start & op),.done(done_ecpd),
+        .clk(clk),.rst_n(rst_n),.start(start & op),.done(done_ecpd),
         .alu_op(ecpd_op),.alu_start(ecpd_start),.alu_done(alu_done),
         .src1_sel(ecpd_sel_a),.src2_sel(ecpd_sel_b),.dst_sel(ecpd_sel_w),
         .we(ecpd_we),.din_sel(ecpd_din)
     );
     alu_core u_alu (
-        .clk(clk),.rst(rst),.start(start_alu),.op(alu_op),
+        .clk(clk),.rst_n(rst_n),.start(start_alu),.op(alu_op),
         .a(data_a),.b(data_b),.result(alu_result),.done(alu_done)
     );
     regbank u_regbank (
-        .clk(clk),.rst(rst),.we(we_reg),.src1_sel(sel_a),.src2_sel(sel_b),
+        .clk(clk),.rst_n(rst_n),.we(we_reg),.src1_sel(sel_a),.src2_sel(sel_b),
         .dst_sel(sel_w),.din(data_w),
         .px(px),.py(py),.pz(pz),.pt(pt),
         .bx(bx),.by(by),.bz(bz),.bt(bt),

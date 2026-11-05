@@ -22,7 +22,7 @@
 
 module Scalar_multi_SM(
     input  wire clk,
-    input  wire rst,
+    input  wire rst_n,
     input  wire start,
 
     input  wire [255:0] k,
@@ -32,7 +32,7 @@ module Scalar_multi_SM(
     output reg done,
 
     // ALU control
-    output reg rst_alu,
+    output reg rst_n_alu,
     output reg start_alu,
     output reg op_alu,      // 1=Double, 0=Add
 
@@ -49,11 +49,15 @@ module Scalar_multi_SM(
     reg [7:0] bit_index;
     reg [255:0] scalar_k;
     reg [255:0] qx_reg,qy_reg,qz_reg,qt_reg;
-    always @(posedge clk or posedge rst) begin
-        if(rst) begin
-            state<=IDLE; done<=0;
-            rst_alu<=1; start_alu<=0; op_alu<=1;
-            bit_index<=8'd255; scalar_k<=0;
+    always @(posedge clk or negedge rst_n) begin
+        if(!rst_n) begin
+            state<=IDLE;
+            done<=0;
+            rst_n_alu<=0;
+            start_alu<=0;
+            op_alu<=1;
+            bit_index<=8'd255;
+            scalar_k<=0;
             qx_reg<=0; qy_reg<=1; qz_reg<=1; qt_reg<=0;
             px_alu<=0; py_alu<=1; pz_alu<=1; pt_alu<=0;
             bx_alu<=0; by_alu<=1; bz_alu<=1; bt_alu<=0;
@@ -66,11 +70,11 @@ module Scalar_multi_SM(
                     scalar_k<=k; bit_index<=8'd255;
                     bx_alu<=px; by_alu<=py; bz_alu<=pz; bt_alu<=pt;
                     qx_reg<=0; qy_reg<=1; qz_reg<=1; qt_reg<=0;
-                    rst_alu<=1;
+                    rst_n_alu<=1;
                     state<=SCAN;
                 end
                 SCAN: begin
-                    rst_alu<=0;
+                    rst_n_alu<=0;
                     if(scalar_k[bit_index]) begin
                         // Leading 1: avoid needlessly doubling the identity.
                         qx_reg<=bx_alu; qy_reg<=by_alu;

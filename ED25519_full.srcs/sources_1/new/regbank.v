@@ -22,7 +22,7 @@
 
 module regbank(
     input  wire                 clk,
-    input  wire                 rst,         // Reset để tải P, d, px, py, pz
+    input  wire                 rst_n,         // Reset để tải P, d, px, py, pz
     input  wire                 we,          // Ghi dữ liệu vào dst_sel
     input  wire [4:0] dst_sel, src1_sel, src2_sel,      // Chỉ số ghi, Chỉ số đọc operand 1, Chỉ số đọc operand 2
     input  wire [255:0]        din,          // Dữ liệu ghi
@@ -39,7 +39,7 @@ module regbank(
     // Reset hoặc nạp dữ liệu đầu vào
     integer i;
     always @(posedge clk) begin
-        if (rst) begin
+        if (!rst_n) begin
             for (i = 0; i < 32; i = i + 1) begin
                 reg_array[i] <= 256'd0;
             end        

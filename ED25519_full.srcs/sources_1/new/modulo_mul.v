@@ -21,7 +21,7 @@
 
 module modulo_mul (
     input  wire         clk,
-    input  wire         rst,
+    input  wire         rst_n,
     input  wire         start,
     input  wire [255:0] X_in,
     input  wire [255:0] Y,
@@ -237,7 +237,7 @@ module modulo_mul (
     // FSM: synchronous active-high reset, done pulse for one cycle.
     // ------------------------------------------------------------------------
     always @(posedge clk) begin
-        if (rst) begin
+        if (!rst_n) begin
             state      <= ST_IDLE;
             done       <= 1'b0;
             R          <= 256'd0;

@@ -22,7 +22,7 @@
 
 module invert(
 input  wire         clk,
-    input  wire         rst,
+    input  wire         rst_n,
     input  wire         start,
     input  wire [255:0] a,
     output wire [255:0] result,
@@ -55,7 +55,7 @@ input  wire         clk,
 
     modulo_mul multiplier (
         .clk(clk),
-        .rst(rst),
+        .rst_n(rst_n),
         .start(mul_start),
         .X_in(op_a),
         .Y(op_b),
@@ -72,8 +72,8 @@ input  wire         clk,
 
     assign result = result_reg;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
             state      <= IDLE;
             mul_start  <= 1'b0;
             done       <= 1'b0;

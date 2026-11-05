@@ -22,7 +22,7 @@
 
 module modulo_add (
     input  wire         clk,
-    input  wire         rst,
+    input  wire         rst_n,
     input  wire         start,
 
     input  wire [255:0] A,
@@ -67,7 +67,7 @@ module modulo_add (
     always @(posedge clk)
     begin
 
-        if(rst)
+        if(!rst_n)
         begin
 
             result <= 256'd0;

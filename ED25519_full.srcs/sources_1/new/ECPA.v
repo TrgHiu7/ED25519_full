@@ -22,7 +22,7 @@
 
 module ECPA(
 //    input  wire clk,
-//    input  wire rst,
+//    input  wire rst_n,
 //    input  wire start,
     
 //    output reg  done,
@@ -66,9 +66,9 @@ module ECPA(
 
 //reg [4:0] state;
 
-//always @(posedge clk or posedge rst) begin
+//always @(posedge clk or posedge rst_n) begin
 
-//    if(rst) begin
+//    if(rst_n) begin
 
 //        state <= IDLE;
 
@@ -410,7 +410,7 @@ module ECPA(
 //end
 
 //endmodule
-    input wire clk, rst, start,
+    input wire clk, rst_n, start,
     output reg done,
     output reg [1:0] alu_op,
     output reg alu_start,
@@ -463,8 +463,8 @@ module ECPA(
             default: begin end
         endcase
     end
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
             state<=IDLE; step<=0; done<=0;
         end else begin
             done<=1'b0;

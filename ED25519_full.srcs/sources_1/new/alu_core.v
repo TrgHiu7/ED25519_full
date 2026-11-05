@@ -22,7 +22,7 @@
 
 module alu_core (
     input  wire              clk,
-    input  wire              rst,
+    input  wire              rst_n,
     input  wire              start,
     
     input  wire [1:0]        op,       // 00: ADD, 01: SUB, 10: MUL
@@ -51,7 +51,7 @@ module alu_core (
     
     modulo_add  mod_add (
         .clk(clk),
-        .rst(rst),
+        .rst_n(rst_n),
         .start(start_add),
         .A(a_reg),
         .B(b_reg),
@@ -61,7 +61,7 @@ module alu_core (
 
     modulo_sub  mod_sub (
         .clk(clk),
-        .rst(rst),
+        .rst_n(rst_n),
         .start(start_sub),
         .A(a_reg),
         .B(b_reg),
@@ -71,7 +71,7 @@ module alu_core (
 
     modulo_mul mod_mul (
         .clk(clk),
-        .rst(rst),
+        .rst_n(rst_n),
         .start(start_mul),
         .X_in(a_reg),
         .Y(b_reg),
@@ -79,8 +79,8 @@ module alu_core (
         .done(done_mul)
     );
     
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
             state <= S_IDLE;
             result <= 256'd0;
             done <= 1'b0;

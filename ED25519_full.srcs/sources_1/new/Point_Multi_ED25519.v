@@ -21,7 +21,7 @@
 
 module Point_Multi_ED25519(
     input  wire           clk,
-    input  wire           rst,
+    input  wire           rst_n,
     input  wire           start,
     input  wire           valid,
     input  wire [255:0]   k,
@@ -50,14 +50,14 @@ module Point_Multi_ED25519(
     reg [255:0] Z_qx, Z_qy;
     reg [255:0] k_latched, px_latched, py_latched;
 
-    reg rst_SMSM;
+    reg rst_n_SMSM;
     reg start_SMSM;
     reg [255:0] pt;
 
     wire SMSM_done;
     wire [255:0] result_x, result_y, result_z, result_t;
 
-    wire rst_alu;
+    wire rst_n_alu;
     wire start_alu;
     wire alu_done;
     wire op_alu;
@@ -65,13 +65,13 @@ module Point_Multi_ED25519(
     wire [255:0] px_alu, py_alu, pz_alu, pt_alu;
     wire [255:0] bx_alu, by_alu, bz_alu, bt_alu;
 
-    reg rst_mul;
+    reg rst_n_mul;
     reg [255:0] X, Y;
     wire [255:0] Z;
     wire mul_done;
     reg start_mul;
 
-    reg rst_inv;
+    reg rst_n_inv;
     reg [255:0] a;
     wire [255:0] a_inv;
     reg start_inv;
@@ -89,7 +89,7 @@ module Point_Multi_ED25519(
 
     Scalar_multi_SM SMSM (
         .clk(clk),
-        .rst(rst_SMSM),
+        .rst_n(rst_n_SMSM),
         .start(start_SMSM),
         .k(k_latched),
         .px(px_latched),
@@ -97,7 +97,7 @@ module Point_Multi_ED25519(
         .pz(256'h1),
         .pt(pt),
         .done(SMSM_done),
-        .rst_alu(rst_alu),
+        .rst_n_alu(rst_n_alu),
         .start_alu(start_alu),
         .alu_done(alu_done),
         .op_alu(op_alu),
@@ -121,7 +121,7 @@ module Point_Multi_ED25519(
 
     alu_point_core alu_unit (
         .clk(clk),
-        .rst(rst_alu),
+        .rst_n(rst_n_alu),
         .start(start_alu),
         .op(op_alu),
         .px(px_alu),
@@ -141,7 +141,7 @@ module Point_Multi_ED25519(
 
     modulo_mul multi_unit (
         .clk(clk),
-        .rst(rst_mul),
+        .rst_n(rst_n_mul),
         .start(start_mul),
         .X_in(X),
         .Y(Y),
@@ -151,7 +151,7 @@ module Point_Multi_ED25519(
 
     invert  inv_unit (
         .clk(clk),
-        .rst(rst_inv),
+        .rst_n(rst_n_inv),
         .start(start_inv),
         .a(a),
         .done(inv_done),
@@ -159,8 +159,8 @@ module Point_Multi_ED25519(
     );
 
     // FSM state
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
             state <= IDLE;
         end else begin
             case (state)
@@ -211,11 +211,11 @@ module Point_Multi_ED25519(
     end
 
     // Outputs / control
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            rst_SMSM   <= 1'b1;
-            rst_mul    <= 1'b1;
-            rst_inv    <= 1'b1;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            rst_n_SMSM   <= 1'b0;
+            rst_n_mul    <= 1'b0;
+            rst_n_inv    <= 1'b0;
             start_mul  <= 1'b0;
             start_SMSM <= 1'b0;
             start_inv  <= 1'b0;
@@ -237,9 +237,9 @@ module Point_Multi_ED25519(
             start_mul  <= 1'b0;
             start_SMSM <= 1'b0;
             start_inv  <= 1'b0;
-            rst_SMSM   <= 1'b0;
-            rst_mul    <= 1'b0;
-            rst_inv    <= 1'b0;
+            rst_n_SMSM   <= 1'b0;
+            rst_n_mul    <= 1'b0;
+            rst_n_inv    <= 1'b0;
             done       <= 1'b0;
 
             case (state)
@@ -249,9 +249,9 @@ module Point_Multi_ED25519(
                         px_latched <= px;
                         py_latched <= py;
                     end
-                    rst_SMSM <= 1'b1;
-                    rst_mul  <= 1'b1;
-                    rst_inv  <= 1'b1;
+                    rst_n_SMSM <= 1'b1;
+                    rst_n_mul  <= 1'b1;
+                    rst_n_inv  <= 1'b1;
                 
                     if (inputs_valid)
                         ready <= 1'b1;
