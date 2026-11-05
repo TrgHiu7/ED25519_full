@@ -72,6 +72,7 @@ module alu_point_core(
     );
     regbank u_regbank (
         .clk(clk),.rst_n(rst_n),.we(we_reg),.src1_sel(sel_a),.src2_sel(sel_b),
+        .load_b(start & ~op),
         .dst_sel(sel_w),.din(data_w),
         .px(px),.py(py),.pz(pz),.pt(pt),
         .bx(bx),.by(by),.bz(bz),.bt(bt),
