@@ -237,9 +237,9 @@ module Point_Multi_ED25519(
             start_mul  <= 1'b0;
             start_SMSM <= 1'b0;
             start_inv  <= 1'b0;
-            rst_n_SMSM   <= 1'b0;
-            rst_n_mul    <= 1'b0;
-            rst_n_inv    <= 1'b0;
+            rst_n_SMSM   <= 1'b1;
+            rst_n_mul    <= 1'b1;
+            rst_n_inv    <= 1'b1;
             done       <= 1'b0;
 
             case (state)

@@ -43,8 +43,14 @@ module Scalar_multi_SM(
     output reg [255:0] bx_alu, by_alu, bz_alu, bt_alu,
     output reg [255:0] result_x, result_y, result_z, result_t
 );
-    localparam [3:0] IDLE=0, SCAN=1, DOUBLE_START=2, DOUBLE_WAIT=3,
-                     ADD_START=4, ADD_WAIT=5, NEXT_BIT=6, DONE_ST=7;
+    localparam [3:0]    IDLE=0,
+                        SCAN=1,
+                        DOUBLE_START=2, 
+                        DOUBLE_WAIT=3,
+                        ADD_START=4, 
+                        ADD_WAIT=5, 
+                        NEXT_BIT=6, 
+                        DONE_ST=7;
     reg [3:0] state;
     reg [7:0] bit_index;
     reg [255:0] scalar_k;
@@ -63,18 +69,19 @@ module Scalar_multi_SM(
             bx_alu<=0; by_alu<=1; bz_alu<=1; bt_alu<=0;
             result_x<=0; result_y<=0; result_z<=0; result_t<=0;
         end else begin
-            done<=0;
-            start_alu<=0;
+            done      <= 1'b0;
+            start_alu <= 1'b0;
             case(state)
                 IDLE: if(start) begin
-                    scalar_k<=k; bit_index<=8'd255;
+                    scalar_k<=k; 
+                    bit_index<=8'd255;
                     bx_alu<=px; by_alu<=py; bz_alu<=pz; bt_alu<=pt;
                     qx_reg<=0; qy_reg<=1; qz_reg<=1; qt_reg<=0;
                     rst_n_alu<=1;
                     state<=SCAN;
                 end
                 SCAN: begin
-                    rst_n_alu<=0;
+                    rst_n_alu <= 1'b1;
                     if(scalar_k[bit_index]) begin
                         // Leading 1: avoid needlessly doubling the identity.
                         qx_reg<=bx_alu; qy_reg<=by_alu;
